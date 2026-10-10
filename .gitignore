@@ -10,3 +10,6 @@ memory_db/
 *.sqlite*
 qdrant/
 .venv/
+staticfiles/
+.env.*
+!.env.example

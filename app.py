@@ -1,128 +1,126 @@
+"""Streamlit host entry point; shares its backend with the Django application."""
 import os,json
 from pathlib import Path
+from dotenv import load_dotenv
 import streamlit as st
-from engine import Engine,SAMPLES
+import streamlit.components.v1 as components
+from observatory_core import Observatory,empty_snapshot,SAMPLES,friendly_error
+from ui_parts import memory_cards,trace_html,pipeline_html,lottie_html,e
+load_dotenv(Path(__file__).parent/'.env')
+st.set_page_config(page_title='Memory Observatory',page_icon='◉',layout='wide',initial_sidebar_state='collapsed')
+BASE=Path(__file__).parent
+st.markdown('<style>'+ (BASE/'static/observatory/style.css').read_text()+'''
+.stApp{background:radial-gradient(ellipse at 80% 0%,#211936 0%,#090d19 42%);color:#e9eef9}.block-container{max-width:1480px;padding-top:2.4rem;padding-bottom:2rem}section[data-testid="stSidebar"]{background:#111827}div[data-testid="stChatMessage"]{background:#111b2d;border:1px solid #26344d;border-radius:14px;padding:16px}div[data-testid="stChatInput"]{border-radius:14px}div[data-testid="stTabs"] button{font-size:13px}button[kind="primary"]{background:#b6a1ff;color:#101322;border:0}div[data-testid="stExpander"]{background:#111827;border-color:#29334a}
+</style>''',unsafe_allow_html=True)
 
-# Never share Engine instances across browser sessions using st.cache_resource.
-st.set_page_config(page_title='Maya • Memory Lab',page_icon='🧠',layout='wide')
-st.markdown('''<style>.stApp{background:#0c1220;color:#edf2ff}h1,h2,h3{letter-spacing:-.035em}div[data-testid="stMetric"]{background:#172237;padding:16px;border-radius:14px} .stCaption{color:#a5b4cf}</style>''',unsafe_allow_html=True)
-st.title('🧠 Maya’s Learning Buddy')
-st.caption('FDE MEMORY LAB  ·  Python coaching  ·  Notebook code + LangGraph')
+def secret(name):
+ try:return str(st.secrets.get(name,'') or os.getenv(name,''))
+ except (FileNotFoundError,st.errors.StreamlitSecretNotFoundError):return os.getenv(name,'')
+
+server_key=secret('OPEN_ROUTER_KEY') or secret('OPENROUTER_API_KEY')
+server_mem0=secret('MEM0_API_KEY')
 with st.sidebar:
- st.header('Your lab controls')
- key=st.text_input('OpenRouter API key',type='password',value='')
+ st.markdown('### Observatory settings')
+ if server_key:st.success('Owner’s demo key is configured server-side.')
+ supplied=st.text_input('OpenRouter key (optional override)' if server_key else 'OpenRouter API key',type='password')
+ key=supplied or server_key
  model=st.text_input('Chat model',value='openrouter/free')
- emb='openai/text-embedding-3-small'
- backend=st.selectbox('Semantic memory backend',['mem0','notebook'],format_func=lambda x:'Mem0 OSS (tutor version)' if x=='mem0' else 'Notebook from-scratch (compare)')
- st.caption('Each visitor supplies their own key. Chat uses OpenRouter. Embeddings may incur a small charge. The key stays in this browser session, never in exports.')
- if st.button('Connect / restart lab',type='primary',disabled=not key):
+ cloud=st.checkbox('Use Mem0 Cloud (as in the notebook)',value=bool(server_mem0))
+ mem_key=st.text_input('Mem0 Platform key',type='password') if cloud and not server_mem0 else ''
+ st.caption('Cloud uses Mem0 Platform. OSS uses your OpenRouter key and local Qdrant. No model weights are changed.')
+ connect=st.button('Start learning session',type='primary',disabled=not key or (cloud and not (mem_key or server_mem0)))
+ if connect:
   try:
-   with st.spinner('Connecting and indexing notebook course notes…'): st.session_state.engine=Engine(key,model,emb,backend=backend)
-   st.session_state.step=0
-  except Exception as exc: st.error(f'Connection failed ({type(exc).__name__}). Check key, credit, model availability and network.')
- st.divider()
- st.caption('Mem0 needs no separate API key in this app.')
- st.caption('Original memory definitions are preserved in notebook_core.py. Scenario extensions and graph nodes live in engine.py.')
-if 'engine' not in st.session_state:
- st.info('Enter your key in the sidebar and connect to explore Maya’s nine-turn scenario.')
- st.subheader('Seven memory types, one conversation')
- st.table({'Memory':['Working','Semantic','Episodic','Procedural','Parametric','External','Prospective'],'Explore':['Recent chat + rolling summary','Name, role, goal, current skills','Learning struggles and milestones','Simple examples; no jargon','Pretrained Python knowledge; optional training candidates','Course RAG + live Python.org lookup','Tomorrow’s practice reminder']})
- st.stop()
-e=st.session_state.engine
-st.caption('Active semantic memory: '+('Mem0 OSS · Qdrant · OpenRouter' if e.backend=='mem0' else 'Notebook vector store'))
-with st.sidebar:
- st.write('🕒 Simulated time:',e.c.ts())
- if st.button('Advance one day ⏩'): e.c.CLOCK.advance(days=1); st.rerun()
- st.caption('Due reminders are checked on your next message. The live version lookup uses real time.')
- consent=st.checkbox('Opt in to training-candidate collection',value=e.c.CONSENT.get('maya',False))
- e.c.set_consent('maya',consent)
- if st.button('End session + consolidate'):
-  try:
-   with st.spinner('Consolidating…'): st.session_state.consolidation=e.end_session()
+   with st.spinner('Preparing the memory backend…'):new=Observatory(key,model,cloud_key=(mem_key or server_mem0) if cloud else None)
+   old=st.session_state.get('observatory')
+   st.session_state.observatory=new
+   if old:old.close()
+   st.session_state.pop('setup_error',None)
    st.rerun()
-  except Exception as exc: st.error(f'Consolidation failed ({type(exc).__name__}).')
- st.download_button('Download memory snapshot',e.export(),'maya_memory.json','application/json')
- uploaded=st.file_uploader('Restore a memory snapshot',type='json')
- if uploaded and st.button('Restore snapshot'):
-  try: e.restore(uploaded.getvalue()); st.rerun()
-  except Exception: st.error('Could not restore: use a valid snapshot with the same embedding model.')
- if st.checkbox('Confirm deleting Maya’s memories') and st.button('Forget Maya'):
-  e.forget(); st.session_state.step=0; st.session_state.pop('consolidation',None); st.rerun()
- st.caption('Mem0 uses a private local Qdrant database for this browser session. Download a snapshot before closing. This is a single-user learning demo.')
-cols=st.columns(4)
-for col,name in zip(cols,['semantic','episodic','procedural','prospective']): col.metric(name.title(),len(e.mm.stores()[name].rows))
-chat,inspector,learn,source=st.tabs(['💬 Chat playground','🔬 Memory inspector','📚 How it works','</> Original code'])
-with chat:
- left,right=st.columns([3,2])
- with right:
-  st.subheader('Guided nine-turn scenario')
-  idx=st.selectbox('Choose a turn',range(9),index=min(st.session_state.get('step',0),8),format_func=lambda i:f'{i+1}. {SAMPLES[i]}')
-  run=st.button('Send selected turn',type='primary')
-  st.caption('Send in order. Then end the session and ask what Maya struggled with to prove long-term recall. Advance one day and say “Hi” to trigger the reminder.')
-  st.info('Parametric knowledge = what the model learned during pretraining. Saving a training candidate does not retrain the model.')
-  if getattr(e,'usage',None):
-   st.write('Memory included / tools used on last response')
-   st.table({'Type':list(e.usage),'Backend activity':list(e.usage.values())})
-  if getattr(e,'nodes',None): st.write('Last graph execution'); st.code(' → '.join(e.nodes))
+  except Exception as exc:st.error(friendly_error(exc))
+ st.caption('Never paste keys into chat. Your key is not included in traces or downloads.')
+# Start automatically only when the owner has configured a server-side key.
+if server_key and 'observatory' not in st.session_state and not st.session_state.get('setup_error'):
+ try:st.session_state.observatory=Observatory(server_key,model,cloud_key=server_mem0 or None)
+ except Exception as exc:st.session_state.setup_error=friendly_error(exc)
+lab=st.session_state.get('observatory');data=lab.snapshot() if lab else empty_snapshot()
+hero,animation=st.columns([5,1])
+with hero:
+ st.markdown('<div class="obs-header"><div class="obs-eyebrow">FDE LAB / LANGGRAPH × MEM0 × OPENROUTER</div><h1 class="obs-title">A conversation.<br><span>Seven kinds of memory.</span></h1><p class="obs-subtitle">Learn with Maya’s AI buddy. Watch the facts, experiences and preferences behind every response become visible.</p></div>',unsafe_allow_html=True)
+ st.markdown(f'<span class="obs-status">{e(data["backend"])} · Lesson {data["thread"]} · {data["turn"]} turns</span>',unsafe_allow_html=True)
+with animation:components.html(lottie_html(),height=165,scrolling=False)
+if not lab:
+ st.info('Open Settings in the sidebar and add your OpenRouter key to begin. If the owner adds it to Streamlit Secrets, teammates can start without a key.')
+ if st.session_state.get('setup_error'):st.error(st.session_state.setup_error)
+if lab:
+ with st.sidebar:
+  if st.button('New conversation · keep memories'):lab.new_thread();st.rerun()
+  if st.button('Refresh stored Mem0 records'):lab.refresh();st.rerun()
+  st.download_button('Download session + operation trace',json.dumps(data,indent=2,default=str),'observatory_session.json','application/json')
+  st.caption('A new conversation resets working context while retaining this student’s memories. Browser/server restarts do not preserve all local state.')
+
+talk,observatory,activity,guide=st.tabs(['Conversation','Memory observatory','Operation trace','How it works'])
+with talk:
+ left,right=st.columns([1.65,1],gap='large')
  with left:
-  for m in e.history:
-   with st.chat_message(m['role']):
-    st.markdown(m['content'])
-    if m.get('memory_usage'):
-     with st.expander('🧠 Memory types for this response'):
-      st.table({'Memory type':list(m['memory_usage']),'Backend activity':list(m['memory_usage'].values())})
-     with st.expander('Backend operations for this response'):
-      st.json(m.get('memory_events',[]))
-  prompt=st.chat_input('Ask your learning buddy…')
-  if run: prompt=SAMPLES[idx]
-  if prompt:
-   try:
-    with st.spinner('Running memory graph…'): e.turn(prompt)
-    if run: st.session_state.step=min(idx+1,8)
-    st.rerun()
-   except Exception as exc: st.error(f'Turn failed ({type(exc).__name__}); the response was not completed. Mem0 writes may already have been saved; inspect memory before retrying. Check model availability and credits.')
-  if ('maya',e.session) in e.buddy.last_turn:
-   up,down=st.columns(2)
-   feedback=True if up.button('👍 Helpful') else False if down.button('👎 Not helpful') else None
-   if feedback is not None:
-    try: e.buddy.give_feedback('maya',e.session,thumbs_up=feedback); st.success('Feedback recorded. See procedural statistics and candidate audit.')
-    except Exception: st.error('Feedback could not be saved.')
-with inspector:
- st.subheader('See what actually happened')
- st.caption('Retrieved / included means available to the model, not proof it causally relied on that memory.')
- if getattr(e,'usage',None): st.table({'Memory':list(e.usage),'Observed behavior':list(e.usage.values())})
- if e.backend=='mem0':
-  with st.expander('Mem0 native ADD / UPDATE / DELETE and search results',expanded=True): st.json(e.mm.semantic.events)
-  if st.button('Load Mem0 update history'):
-   try: st.json(e.mm.semantic.history('maya'))
-   except Exception: st.error('Mem0 history could not be loaded.')
- kind=st.selectbox('Memory store',['working','semantic','episodic','procedural','external','prospective','parametric candidates'],format_func=str.title)
- if kind=='working':
-  wm=e.mm.wm('maya',e.session); st.json({'summary':wm.summary,'recent_turns':wm.turns,'scratchpad':wm.scratch,'approx_tokens':wm.tokens()})
- else: st.json(e.snapshot()['param' if kind=='parametric candidates' else kind])
- with st.expander('Changes on the last turn',expanded=True): st.json(getattr(e,'delta',{}))
- with st.expander('Retrieved episodes / playbooks / working context'): st.json(getattr(e,'retrieved',{}))
- with st.expander('Tool calls and memory reads'): st.json(e.events)
- with st.expander('Exact retrieved context sent to model'): st.code(e.context)
- with st.expander('Live external evidence'): st.json(e.external)
- with st.expander('Training-candidate audit (no actual training)'): st.json(e.mm.param.audit)
- with st.expander('Last end-of-session consolidation'): st.json(st.session_state.get('consolidation',{}))
-with learn:
- st.markdown('''### Memory lifecycle
-1. **Capture:** extract facts, reported experiences and explicit teaching preferences.
-2. **Retrieve:** notebook semantic search, recency-weighted episodes, teaching playbooks and due reminders.
-3. **Respond:** original tool-calling loop inside a LangGraph node; tools can store facts, search notes or create reminders.
-4. **Inspect:** compare store snapshots and show actual tool calls.
-5. **Consolidate:** end the session to derive an episode and useful teaching procedures, then clear working memory.
-6. **Persist or forget:** download a snapshot, restore it later, or delete Maya’s data.
+  current=[x for x in data['history'] if x['thread']==data['thread']]
+  if not current:
+   st.markdown('<h2 class="obs-section-title">What are we learning today?</h2><p class="obs-section-subtitle">Ask about a topic, record a study session, or tell your buddy how you like to learn.</p>',unsafe_allow_html=True)
+  for i,turn in enumerate(current):
+   with st.chat_message('user'):st.markdown(turn['question'])
+   if turn['answer']:
+    with st.chat_message('assistant'):
+     st.markdown(turn['answer'])
+     kinds=list(dict.fromkeys(o['type'].title() for o in turn['operations']))
+     st.caption('Observed memory operations: '+' · '.join(kinds))
+     with st.expander('Inspect this response’s backend operations'):st.markdown(trace_html(turn['operations']),unsafe_allow_html=True)
+   if turn['warning']:st.warning(turn['warning'])
+  with st.expander('Try Maya’s guided memory lifecycle',expanded=not bool(current)):
+   chosen=st.selectbox('Pick a sample',SAMPLES,label_visibility='collapsed')
+   send=st.button('Send sample',disabled=not lab)
+  prompt=st.chat_input('Ask, learn, or record a milestone…',disabled=not lab,max_chars=6000)
+  if send:prompt=chosen
+  if prompt and lab:
+   with st.status('Following the memory lifecycle…',expanded=True) as status:
+    lab.chat(prompt,notify=lambda name:status.write('→ '+name.title()))
+    status.update(label='Response and operation trace ready',state='complete')
+   st.rerun()
+ with right:
+  st.markdown('<h2 class="obs-section-title">Behind the response</h2><p class="obs-section-subtitle">Executed graph nodes. Real operations, not guessed attention.</p>',unsafe_allow_html=True)
+  st.markdown(pipeline_html(data['stages']),unsafe_allow_html=True)
+  for card in data['cards']:
+   actions=' · '.join(card['actions'])
+   st.markdown(f'<div style="display:flex;justify-content:space-between;gap:12px;border-bottom:1px solid #263149;padding:10px 0"><span style="color:{card["color"]}">{card["symbol"]} {card["type"].title()}</span><span style="font:10px/2 ui-monospace;color:#9caeca">{e(actions)}</span></div>',unsafe_allow_html=True)
+  st.caption('READ means a retrieval happened. It does not prove the model relied on that memory.')
+with observatory:
+ st.markdown('<h2 class="obs-section-title">Memory, made visible.</h2><p class="obs-section-subtitle">State after the latest turn · select a type below to inspect complete records.</p>',unsafe_allow_html=True)
+ st.markdown(memory_cards(data['cards']),unsafe_allow_html=True)
+ selected=st.selectbox('Inspect all items',[c['type'] for c in data['cards']],format_func=str.title)
+ card=next(c for c in data['cards'] if c['type']==selected)
+ st.json({'type':selected,'actions':card['actions'],'items':card['items']})
+ if selected=='prospective' and lab:
+  for task in data['tasks']:
+   if task['status']!='COMPLETED' and st.button('Mark complete: '+task['text'],key=task['id']):lab.complete_task(task['id']);st.rerun()
+with activity:
+ st.markdown('<h2 class="obs-section-title">The application’s audit trail.</h2>',unsafe_allow_html=True)
+ st.markdown(pipeline_html(data['stages']),unsafe_allow_html=True)
+ st.markdown(trace_html(data['operations']),unsafe_allow_html=True)
+ with st.expander('Raw recalled records and similarity scores'):st.json(data['recalled'])
+ with st.expander('Raw Mem0 records'):st.json(data['records'])
+ with st.expander('Raw executed operations'):st.json(data['operations'])
+with guide:
+ st.markdown('''### Your notebook, as an application
+**Recall → external lookup → respond → consolidate → dashboard.**
 
-### What changed from the notebook?
-Mem0 is the default semantic backend: it owns fact extraction, deduplication, update history and retrieval. All other memory types use the notebook classes. The memory class definitions and `run_agent` are copied verbatim. We added a corrected OpenRouter client, configurable embedding model, four-node LangGraph, immediate experience/preference capture, a Python.org tool, notebook-state rollback, and Streamlit controls (Mem0 writes are not transactional). This makes all nine turns observable without waiting for end-of-session consolidation.
+- **Working:** LangGraph `InMemorySaver`, isolated by student and lesson.
+- **Semantic / episodic:** Mem0 records classified for display; local reported experiences are retained too.
+- **Procedural:** explicit teaching preferences, included in the prompt.
+- **External:** a real Python.org lookup, timestamp and source.
+- **Prospective:** pending intentions, with manual completion. No background notifications.
+- **Parametric:** the model’s pretrained knowledge. We log the model call; weights are neither inspected nor trained.
 
-Episode timestamps indicate **when recorded**; “yesterday” remains in the episode text. Retrieval is approximate and model-dependent. The model can still fail to call a tool or extract a memory—check the inspector rather than assuming success.
+“New conversation” changes the LangGraph thread while preserving this student’s long-term records. Mem0 Cloud requires a Mem0 Platform key; OSS does not. The same backend also powers the Django UI and API included in the repo.
 
-The graph has no persistent checkpointer: the notebook memory objects hold state. Working memory is ephemeral; downloaded snapshots hold long-term stores. Reminder delivery occurs on chat turns only. Parametric weights never change here.
+The source notebook is preserved under `reference/`. We corrected broken regex word boundaries, scoped global state per visitor, added partial-failure reporting, and changed the release lookup to select stable Python versions.
 ''')
-with source:
- name=st.selectbox('Read implementation',['notebook_core.py','engine.py','mem0_backend.py','source_map.json'])
- st.code(Path(__file__).with_name(name).read_text(),language='json' if name.endswith('json') else 'python')
+ st.caption('Mem0 classification is heuristic. Memories may be stale or imperfect. Snapshots contain your conversation. Local state is ephemeral; Cloud records remain at the provider.')

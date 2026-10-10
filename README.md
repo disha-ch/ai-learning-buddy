@@ -1,84 +1,119 @@
-# 🧠 Maya’s AI Learning Buddy
+# Memory Observatory · Maya’s AI Learning Buddy
 
-**Streamlit + LangGraph + Mem0 OSS + OpenRouter.** An inspectable memory lab based on the supplied FDE Memory Masterclass notebook.
+A redesigned learning workspace with **Django + Streamlit frontends**, one **LangGraph backend**, **Mem0 OSS / Cloud**, and **OpenRouter**.
 
-## Publish a public UI
+Public Streamlit app: https://ai-learning-buddy-fde.streamlit.app/
 
-The repository is deployment-ready; a GitHub repository alone does not host Python. Choose one:
+## What changed
 
-- **Streamlit Community Cloud:** sign in at https://share.streamlit.io, create an app using repository `disha-ch/ai-learning-buddy`, branch `main`, file `app.py`, Python 3.11, and public visibility. No secrets need to be added; visitors enter their own OpenRouter keys.
-- **Render:** use the included `render.yaml` as a Blueprint. It creates a public Python web service on the free plan (availability subject to your account). Visitor memory is isolated per Streamlit session, with a separate temporary Qdrant database. Free-service restarts clear temporary storage; export snapshots first.
+- Seven named memory cards, with contents and observed READ / WRITE / ADD / UPDATE / ERROR status.
+- Per-response operation traces, retrieved records and similarity scores, graph-node durations.
+- An original local Lottie animation; reduced-motion support; responsive purple/teal interface.
+- Real LangGraph `InMemorySaver` threads and the new notebook's node order: **recall → external → respond → consolidate**.
+- Fixed the uploaded notebook's literal backspace characters in regex patterns, which prevented preference/event/reminder detection.
+- Answers remain visible when a memory write fails; the UI reports the storage failure instead of silently discarding the turn.
+- Latest **stable** Python selection from Python.org, rather than treating the first RSS entry as necessarily stable.
+- Server-side key support: teammates can use an owner-configured demo key without seeing it.
+- A Django frontend and JSON API with CSRF protection, isolated visitor sessions, idle cleanup, and no credentials in cookies or response payloads.
 
-Do not set a shared OpenRouter key for a public demo. There is no authentication or permanent user account system: the persona is Maya, but each visitor has a separate lab. Do not use this educational app for sensitive production records.
+## Run Streamlit (existing public deployment)
 
-## Open the real UI
-
-[![Open in GitHub Codespaces](https://github.com/codespaces/badge.svg)](https://codespaces.new/disha-ch/ai-learning-buddy?quickstart=1)
-
-1. Click **Open in GitHub Codespaces**, then create the codespace. GitHub may show account usage/billing limits.
-2. Wait for dependency installation. Streamlit starts automatically. Open **Ports → 8501 → Open in Browser** if it does not open automatically; keep the port private.
-3. Paste your **OpenRouter API key** in the sidebar. Choose **Mem0 OSS (tutor version)** and click **Connect / restart lab**.
-4. Send the guided turns, then open **Memory inspector** to see actual retrieved records and Mem0 ADD / UPDATE / DELETE events.
-
-No Mem0 API key, OpenAI API key, or separate Qdrant server is required. Mem0 OSS runs locally; its LLM and embedding requests use OpenRouter. The key is never committed or included in memory exports.
-
-### Run locally (Python 3.11+)
 ```bash
 python -m pip install -r requirements.txt
 python -m streamlit run app.py
 ```
-Open http://localhost:8501. Enter the key in the sidebar. The UI never exposes a server-owned key or persists visitor keys to disk. `openrouter/free` may be rate-limited or lack a suitable available model; select another tool-capable OpenRouter model if necessary. Embeddings use `openai/text-embedding-3-small` (1536 dimensions), which may incur a small charge.
 
-## What uses Mem0?
+Streamlit Community Cloud continues to run `app.py` from `main`. It cannot run a Django web server. GitHub changes update the existing Streamlit application after Cloud rebuilds it.
 
-| Memory | Implementation | What the inspector shows |
-|---|---|---|
-| Semantic | **Mem0 OSS**, local Qdrant, history SQLite | Real `add` events, search results/scores, stored facts, update history |
-| Episodic | Notebook `EpisodicMemory` | Reported study experiences, milestones, similarity and recency |
-| Procedural | Notebook `ProceduralMemory` | Teaching playbooks, explicit preferences, feedback stats |
-| Working | Notebook `WorkingMemory` | Recent messages, rolling summary, scratchpad |
-| External | Notebook course RAG + Python.org tool | Tool calls, course sources, actual live lookup result |
-| Prospective | Notebook `ProspectiveMemory` | Pending/delivered reminders and due dates |
-| Parametric | Chat model's pretrained knowledge | Generation happens; weights never change. Optional candidates are not training. |
+### Owner's demo key — hosted app
 
-**Mem0 is the default semantic backend.** Choose “Notebook from-scratch” to compare the original ADD / UPDATE / NOOP implementation. Memory types describe behavior, not separate Mem0 product features. The UI labels memory that was *retrieved/included*; it cannot prove the model causally relied on a particular memory.
+Open Streamlit Cloud → app settings → **Secrets** and set:
 
-## Nine-turn exploration
-
-1. Introduce Maya → inspect Mem0 facts.
-2. Report yesterday’s nested-loop struggle → inspect an episode.
-3. Ask for simple examples without jargon → inspect a student-specific procedure.
-4. Ask about functions → pretrained knowledge with the explanation preference in context.
-5. Ask about yesterday’s struggle → inspect retrieved episodes and scores.
-6. Ask for the latest Python version → verify `latest_python_version` actually ran; failed lookup must not produce a guessed version.
-7. Ask for a reminder tomorrow → inspect the prospective record.
-8. Ask what you are discussing → inspect working-memory messages.
-9. Report mastery → inspect updated current facts plus the milestone episode.
-
-Then **End session + consolidate** and ask again to distinguish working memory from retained memory. **Advance one day**, then send “Hi” to trigger due reminders. Reminders are delivered during chat, not through a background notification service.
-
-Use **Download memory snapshot** before closing. Restore with the same backend and embedding model. Mem0 restore recreates facts, with new IDs; it does not preserve original Mem0 update-history entries. Snapshots include up to 1,000 Mem0 facts, suitable for this small lab. Forgetting removes Maya’s current records, working memory and UI traces; downloaded snapshots remain separate copies and local Mem0 audit history may remain in the temporary database.
-
-## Code walkthrough
-
-- `notebook_core.py`: original definitions and constants copied verbatim, with source-cell references. Demonstration executions and installs omitted.
-- `source_map.json`: notebook cell mapping.
-- `engine.py`: four-node LangGraph: capture → retrieve → respond → inspect. Calls the original tool loop and memory classes.
-- `mem0_backend.py`: adapted notebook Part 12 concept using current Mem0 2.2.1 APIs, explicit OpenRouter configuration, user-filtered retrieval, Qdrant storage and native history.
-- `app.py`: actual Streamlit chat and memory inspector.
-- `test_memory.py`: offline lifecycle tests; no live model quality claims.
-- `.devcontainer/`: Codespaces setup and private Streamlit port.
-- `Colab_Launcher.ipynb`: optional Colab launch instructions.
-
-The notebook originally contains no LangGraph graph. Its bare `OpenAI()` client does not use its `OPEN_ROUTER_KEY` setting, and `openrouter/free` is not its embedding model. The adapter fixes both. Immediate episode/preference capture is an explicit addition so the nine-turn example is observable before end-of-session consolidation. Episode timestamps are ingestion time; relative event dates stay in the text. Mem0 native updates replace the notebook's semantic superseding logic in Mem0 mode.
-
-## Scope and limitations
-
-Educational app with isolated browser sessions, suitable for a small public demo with visitor-supplied keys; not a hardened production service. Each connection gets an isolated temporary Mem0/Qdrant directory. It retains facts across “End session” but a new connection starts a new lab; export snapshots for portability. Other stores and graph state are in process memory. There is no LangGraph persistent checkpointer, hosted deployment, scheduler or model fine-tuning. Failed turns roll back notebook state, but **Mem0 writes may already have committed**; inspect before retrying. Memory extraction/tool use is model-dependent. Basic candidate scrubbing is not comprehensive anonymization. Server resources/files may remain until process/environment cleanup. Keep API keys and personal snapshots out of Git.
-
-## Tests
-```bash
-python -m unittest -v
+```toml
+OPEN_ROUTER_KEY = "your-openrouter-key"
+# Optional: use the exact hosted Mem0 mode from the new notebook:
+# MEM0_API_KEY = "your-mem0-platform-key"
 ```
 
-References: [Mem0 OSS configuration](https://docs.mem0.ai/open-source/configuration), [LangGraph StateGraph](https://reference.langchain.com/python/langgraph/graph/state/StateGraph), [OpenRouter embeddings](https://openrouter.ai/docs/api/api-reference/embeddings/create-embeddings).
+Do not commit real secrets. `.streamlit/secrets.example.toml` is only a template. A local `.env` does **not** configure your hosted Streamlit app. With an owner key configured, public visitors use its credits. Remove the secret to stop that behavior. Keys typed into the sidebar override the server key for that visitor.
+
+### Local environment
+
+Copy `.env.example` to `.env`, then set `OPEN_ROUTER_KEY`. Local `.env` and Streamlit `secrets.toml` are ignored by Git. For Cloud mode, also provide `MEM0_API_KEY`. The OpenRouter key alone supports **Mem0 OSS**; it does not authenticate Mem0 Platform.
+
+## Run Django
+
+```bash
+python -m pip install -r requirements.txt
+python manage.py collectstatic --noinput
+python manage.py runserver
+```
+
+Open http://127.0.0.1:8000. Click **Connection settings → Start learning session**. If the key is configured in the server environment, visitors can leave the key blank. The Django version has the same engine and memory behavior as Streamlit, plus its own custom HTML/CSS/JS interface.
+
+Production command (one worker is intentional for this in-memory classroom demo):
+
+```bash
+python -m gunicorn observatory.wsgi:application --bind 0.0.0.0:8000 --workers 1 --threads 4 --timeout 180
+```
+
+Configure a stable `DJANGO_SECRET_KEY`, exact `DJANGO_ALLOWED_HOSTS`, HTTPS origin(s) in `DJANGO_CSRF_TRUSTED_ORIGINS`, and `DJANGO_SECURE_COOKIES=1` behind HTTPS. The Dockerfile and Procfile can be used with a Python/container hosting service. The Django version is **not automatically hosted at the Streamlit URL**.
+
+### API
+
+| Route | Method | Behavior |
+|---|---|---|
+| `/api/state` | GET | Current session state and seven cards |
+| `/api/connect` | POST | Create an isolated lab; key may come from server environment |
+| `/api/chat` | POST | `{"question":"..."}` → response, stages, memory records, trace |
+| `/api/new-thread` | POST | Clear working context by starting a new thread; retain memories |
+| `/api/refresh` | POST | Refresh Mem0 records, including pending Cloud writes |
+| `/api/complete-task` | POST | `{"id":"..."}` → manually mark an intention complete |
+| `/health/` | GET | Server health |
+
+POST requests require the session's CSRF cookie and `X-CSRFToken` header. User IDs are generated server-side and cannot be selected in request payloads. The public deployment is an educational demo, not a production multi-tenant platform.
+
+## Seven categories
+
+| Type | Backend meaning |
+|---|---|
+| **Parametric** | OpenRouter model invoked; pretrained weights unchanged |
+| **Working** | LangGraph checkpointed messages for this lesson |
+| **Semantic** | Mem0 fact storage, search and native memory events |
+| **Episodic** | Reported study experiences and heuristically classified Mem0 records |
+| **Procedural** | Explicit preferences/rules included in the response prompt |
+| **External** | Real public API lookup, source URL and timestamp |
+| **Prospective** | Pending intentions and manual completion; **no notification scheduler** |
+
+Cards show state. Only the trace shows executed operations. Retrieval is not proof of model attention. Labels are application-level heuristics, not seven independent Mem0 products. Mem0 Cloud processing can be asynchronous; ADD_CALL is not represented as a confirmed new record.
+
+## Class walkthrough
+
+Introduce Maya → report a struggle → set a teaching preference → request an explanation → recall yesterday → fetch current Python version → record a future intention → ask about current conversation → report mastery. Then start a **new conversation** and ask what the buddy remembers: working context resets, retained memory does not.
+
+You can freely discuss any learning topic; the sample prompts are shortcuts only. The model may misremember or fail to extract a fact. Inspect records and errors rather than assuming success.
+
+## Notebook alignment and files
+
+`reference/Memory_Observatory.ipynb` preserves your new notebook's source cells, with outputs removed. `observatory_core.py` adapts its globals into isolated instances. Graph order, checkpointer, memory classifications, registries and operation dashboard match its architecture. Differences are documented above; this is a web-app adaptation, not a claim of byte-identical notebook execution. The notebook's FastAPI demonstration is replaced by the requested Django API.
+
+- `observatory_core.py`: shared graph, Mem0 adapter, registries, traces.
+- `app.py`: Streamlit entry point, used by the existing public URL.
+- `observatory/`: Django settings, routes and API views.
+- `templates/index.html`, `static/observatory/`: custom Django UI and original Lottie asset.
+- `ui_parts.py`: shared card/trace markup for Streamlit.
+- `test_observatory.py`: lifecycle, failure handling, stable-version selection, isolation and CSRF tests.
+- `notebook_core.py`, `engine.py`, `mem0_backend.py`, `test_memory.py`: retained first-notebook implementation for comparison; no longer the active UI backend.
+
+## State lifetime and limits
+
+Local registries and LangGraph checkpoints are in memory. Each OSS lab has a separate temporary Qdrant directory. New conversation retains memory; reconnecting creates a new lab. Django expires idle labs after two hours when new connections arrive, capped at 40 active labs. A server restart clears in-process state. Cloud records remain under the generated visitor ID, but automatic identity recovery across browser restarts is not implemented. Downloads are inspection exports, not restoration backups. Mem0 inspector reads at most 100 records per refresh, suitable for a small class demo. No background reminders, durable cross-device identity, model training, or production authentication is implied.
+
+Mem0 optional NLP/BM25 packages are not needed for vector recall. Provider rate limits, paid embeddings, missing credits and free-model availability can still block live requests; errors are shown without exposing secrets. The CDN supplies the Lottie player; the JSON animation itself is local and original. Chat remains functional if that animation cannot load.
+
+## Validate
+
+```bash
+python -m unittest -v test_observatory test_memory
+python manage.py check
+```
