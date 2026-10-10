@@ -1,0 +1,182 @@
+[
+  {
+    "cell": 5,
+    "definition": "import json, uuid, re, math, time, textwrap"
+  },
+  {
+    "cell": 5,
+    "definition": "import numpy as np"
+  },
+  {
+    "cell": 5,
+    "definition": "import pandas as pd"
+  },
+  {
+    "cell": 5,
+    "definition": "from datetime import datetime, timedelta"
+  },
+  {
+    "cell": 5,
+    "definition": "from dataclasses import dataclass"
+  },
+  {
+    "cell": 5,
+    "definition": "from typing import Callable, Optional"
+  },
+  {
+    "cell": 5,
+    "definition": "_embed_cache "
+  },
+  {
+    "cell": 5,
+    "definition": "embed"
+  },
+  {
+    "cell": 5,
+    "definition": "chat"
+  },
+  {
+    "cell": 5,
+    "definition": "llm_json"
+  },
+  {
+    "cell": 5,
+    "definition": "SimClock"
+  },
+  {
+    "cell": 5,
+    "definition": "CLOCK "
+  },
+  {
+    "cell": 5,
+    "definition": "ts"
+  },
+  {
+    "cell": 5,
+    "definition": "hr"
+  },
+  {
+    "cell": 8,
+    "definition": "CoreMemory"
+  },
+  {
+    "cell": 10,
+    "definition": "Tool"
+  },
+  {
+    "cell": 12,
+    "definition": "run_agent"
+  },
+  {
+    "cell": 12,
+    "definition": "lab1_chat"
+  },
+  {
+    "cell": 21,
+    "definition": "_match"
+  },
+  {
+    "cell": 21,
+    "definition": "VectorStore"
+  },
+  {
+    "cell": 21,
+    "definition": "show_hits"
+  },
+  {
+    "cell": 25,
+    "definition": "summarize_turns"
+  },
+  {
+    "cell": 25,
+    "definition": "WorkingMemory"
+  },
+  {
+    "cell": 27,
+    "definition": "DECIDE_PROMPT "
+  },
+  {
+    "cell": 27,
+    "definition": "SemanticMemory"
+  },
+  {
+    "cell": 29,
+    "definition": "EpisodicMemory"
+  },
+  {
+    "cell": 32,
+    "definition": "ProceduralMemory"
+  },
+  {
+    "cell": 32,
+    "definition": "seed_procedures"
+  },
+  {
+    "cell": 35,
+    "definition": "chunk_text"
+  },
+  {
+    "cell": 35,
+    "definition": "ExternalMemory"
+  },
+  {
+    "cell": 35,
+    "definition": "COURSE_DOCS "
+  },
+  {
+    "cell": 38,
+    "definition": "ProspectiveMemory"
+  },
+  {
+    "cell": 41,
+    "definition": "CONSENT "
+  },
+  {
+    "cell": 41,
+    "definition": "set_consent"
+  },
+  {
+    "cell": 41,
+    "definition": "scrub"
+  },
+  {
+    "cell": 41,
+    "definition": "COACH_STYLE_SYSTEM "
+  },
+  {
+    "cell": 41,
+    "definition": "JUDGE_PROMPT "
+  },
+  {
+    "cell": 41,
+    "definition": "ParametricCandidates"
+  },
+  {
+    "cell": 44,
+    "definition": "MemoryManager"
+  },
+  {
+    "cell": 45,
+    "definition": "COACH_SYSTEM "
+  },
+  {
+    "cell": 45,
+    "definition": "CONSOLIDATE_PROMPT "
+  },
+  {
+    "cell": 45,
+    "definition": "StudyBuddy"
+  },
+  {
+    "cell": 65,
+    "definition": "save_all"
+  },
+  {
+    "cell": 65,
+    "definition": "load_all"
+  },
+  {
+    "cell": 65,
+    "definition": "forget_user"
+  }
+]
