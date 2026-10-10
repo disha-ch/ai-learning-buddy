@@ -1,0 +1,12 @@
+.env
+.streamlit/secrets.toml
+__pycache__/
+*.pyc
+maya_memory.json
+memory_db/
+*.log
+
+*.db
+*.sqlite*
+qdrant/
+.venv/
